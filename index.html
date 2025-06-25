@@ -37,8 +37,8 @@
             background-color: var(--bg-color); z-index: 9999;
             display: flex; flex-direction: column; justify-content: center; align-items: center;
         }
-        #splash-icon { font-size: 5rem; color: var(--primary-color); margin-bottom: 20px; opacity: 0; }
-        #splash-title { font-size: 2rem; color: var(--text-color); opacity: 0; text-align: center; padding: 0 15px; }
+        #splash-icon { font-size: 5rem; color: var(--primary-color); margin-bottom: 20px; opacity: 0; transform: scale(0.5); }
+        #splash-title { font-size: 2rem; color: var(--text-color); opacity: 0; transform: scale(0.5); text-align: center; padding: 0 15px; }
 
         #bg-canvas { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1; }
 
@@ -57,12 +57,13 @@
             visibility: hidden; opacity: 0; transform-origin: center center;
         }
         #setup .page-content, #history .page-content { max-width: 800px; }
-        .page.active { visibility: visible; }
+        .page.active { visibility: visible; /* Opacity set by GSAP */ }
         #quiz.page { padding-top: 100px; }
 
         .page-content { width: 100%; overflow-y: auto; padding-right: 15px; }
         .page-content::-webkit-scrollbar { width: 8px; }
         .page-content::-webkit-scrollbar-track { background: var(--border-color); border-radius: 4px; }
+        .page-content::-webkit-scrollbar-thumb { background-color: var(--primary-color); border-radius: 4px; }
 
         h1, h2, h3 { color: var(--primary-color); font-weight: 600; }
         h1 { font-size: 2.5em; text-align: center; margin-bottom: 10px; }
@@ -170,8 +171,8 @@
                 position: fixed; bottom: 0; left: 0; width: 100%; margin: 0; padding: 15px; background-color: var(--surface-color); border-top: 1px solid var(--border-color); box-shadow: 0 -4px 12px var(--shadow-color);
                 display: flex; justify-content: center; align-items: center; gap: 15px; z-index: 100;
             }
-            #setup #start-quiz-btn, #history-btn #quiz #submit-quiz-btn, #results #restart-quiz-btn, #history #back-home-btn { flex-grow: 1; max-width: 400px; }
-            #splash-title { font-size: 2.5rem; }
+            #setup #start-quiz-btn, #history-btn, #quiz #submit-quiz-btn, #results #restart-quiz-btn, #history #back-home-btn { flex-grow: 1; max-width: 400px; }
+            #splash-title { font-size: 1.8rem; }
             h1 { font-size: 2.1em; }
             h2 { font-size: 1.7em; }
             .form-row { flex-direction: column; gap: 0; }
@@ -198,7 +199,7 @@
         <div class="modal-content">
             <h2>Confirm Submission</h2>
             <p>Are you sure you want to submit?</p>
-            <div class="modal-buttons">
+            <div class="modal-buttons btn-group">
                 <button id="cancel-submit-btn" class="btn btn-secondary"><i class="fa-solid fa-xmark"></i> Cancel</button>
                 <button id="confirm-submit-btn" class="btn"><i class="fa-solid fa-check"></i> Yes, Submit</button>
             </div>
@@ -222,10 +223,9 @@
             <div class="page-content">
                 <h1>Sintha Quizzes</h1>
                 <p>Your ultimate AI-powered trivia challenge.</p>
-                <!-- MOTIVATIONAL PARAGRAPH -->
                 <p class="motivation-quote">
                     Success is not just about talent—it's about persistence, discipline, and focus. Every challenge you face is an opportunity to learn, grow, and improve. Stay committed to your goals, even when progress feels slow. Great achievements take time and consistent effort. Keep your mindset strong and your vision clear. Surround yourself with positive influences and never underestimate the power of small, daily actions. Mistakes are not failures; they are steps toward mastery. Believe in your ability to overcome obstacles and adapt. Stay professional, stay focused, and remember: resilience and hard work always pave the way to meaningful success. Keep going.
-</p>
+                </p>
             </div>
             <div class="btn-group">
                 <button id="join-quiz-btn" class="btn"><i class="fa-solid fa-wand-magic-sparkles"></i> New Quiz</button>
@@ -261,7 +261,8 @@
     <script type="importmap">{ "imports": { "@google/generative-ai": "https://esm.run/@google/generative-ai" } }</script>
     <script type="module">
         // ===================================================================================
-        const API_KEY = "AIzaSyCRswXekCH3Yh8RhYpRGKS02J0rpKEPFcs"; // IMPORTANT: Replace with your actual Google AI API Key
+        // IMPORTANT: Replace with your actual Google AI API Key
+        const API_KEY = "AIzaSyCRswXekCH3Yh8RhYpRGKS02J0rpKEPFcs"; 
         // ===================================================================================
 
         import { GoogleGenerativeAI } from "@google/generative-ai";
@@ -335,31 +336,61 @@
             });
 
             if (favoritesCount === 0) favoritesList.innerHTML = '';
-            if (historyCount === 0) historyList.innerHTML = '<h3>Recent</h3><p>No other recent quizzes.</p>';
+            if (historyCount === 0) historyList.innerHTML = '<h3><i class="fa-solid fa-clock-rotate-left"></i> Recent</h3><p>No other recent quizzes.</p>';
         }
         
         async function handleHistoryClick(e) {
             const viewBtn = e.target.closest('.btn-view');
             const favBtn = e.target.closest('.btn-favorite');
             const shareBtn = e.target.closest('.btn-share');
+
             if (viewBtn) {
                 const quizData = getHistory().find(q => q.id === Number(viewBtn.dataset.id));
                 if (quizData) { renderResults(quizData); showPage('results'); }
             }
             if (favBtn) { toggleFavorite(Number(favBtn.dataset.id)); }
+            
+            // =======================================================================
+            // ///  NEW: Link Shortener Integration ///
+            // =======================================================================
             if (shareBtn) {
                 const quizData = getHistory().find(q => q.id === Number(shareBtn.dataset.id));
-                if (quizData) {
+                if (!quizData) return;
+
+                const shareButtonIcon = shareBtn.querySelector('i');
+                shareButtonIcon.className = 'fa-solid fa-spinner fa-spin'; // Show loader
+
+                try {
+                    // 1. Create the long URL with the data
                     const encodedData = btoa(JSON.stringify(quizData));
-                    const shareUrl = `${window.location.origin}${window.location.pathname}#quiz-share-${encodedData}`;
-                    const sharePayload = { title: 'Sintha Quiz Challenge', text: `I scored ${quizData.score}/${quizData.numQuestions} on a quiz about ${quizData.topic}! Can you beat my score?`, url: shareUrl };
-                    if (navigator.share) {
-                        try { await navigator.share(sharePayload); } 
-                        catch (err) { console.error('Share failed:', err); }
-                    } else {
-                        navigator.clipboard.writeText(shareUrl);
-                        showSnackbar("Quiz link copied to clipboard!");
+                    const longUrl = `${window.location.origin}${window.location.pathname}#quiz-share-${encodedData}`;
+
+                    // 2. Call the TinyURL API to shorten it
+                    const apiUrl = `https://tinyurl.com/api-create.php?url=${encodeURIComponent(longUrl)}`;
+                    const response = await fetch(apiUrl);
+                    if (!response.ok) {
+                        throw new Error('API response was not ok.');
                     }
+                    const shortUrl = await response.text();
+
+                    // 3. Use the new short URL for sharing
+                    const sharePayload = {
+                        title: 'Sintha Quiz Challenge',
+                        text: `I scored ${quizData.score}/${quizData.numQuestions} on a quiz about ${quizData.topic}! Can you beat my score?`,
+                        url: shortUrl // Use the short URL here
+                    };
+
+                    if (navigator.share) {
+                        await navigator.share(sharePayload);
+                    } else {
+                        navigator.clipboard.writeText(shortUrl);
+                        showSnackbar("Short challenge link copied to clipboard!");
+                    }
+                } catch (err) {
+                    console.error('Error creating short link:', err);
+                    showSnackbar("Could not create short link. Please try again.");
+                } finally {
+                    shareButtonIcon.className = 'fa-solid fa-share-nodes'; // Reset icon
                 }
             }
         }
@@ -447,7 +478,7 @@
                 return;
             }
 
-            if (API_KEY === "YOUR_GOOGLE_AI_API_KEY") { alert("Please enter your Google AI API Key at the top of the script."); return; }
+            if (API_KEY === "YOUR_GOOGLE_AI_API_KEY" || !API_KEY) { alert("Please enter your Google AI API Key at the top of the script file to generate quizzes."); return; }
             state.numQuestions = parseInt(document.getElementById('num-questions').value) || 10;
             state.totalTime = parseInt(document.getElementById('total-quiz-time').value) || 10;
             state.difficulty = document.getElementById('difficulty').value;
@@ -534,7 +565,7 @@
             const inputs = document.querySelectorAll('#quiz-config-inputs .form-control');
             inputs.forEach(input => {
                 input.disabled = !enabled;
-                if (input.type !== 'select-one') {
+                if (input.tagName.toLowerCase() !== 'select') {
                    input.required = enabled;
                 }
             });
@@ -545,9 +576,9 @@
             document.getElementById('quiz-config-inputs').style.display = 'block';
             document.getElementById('setup-title').textContent = 'Quiz Setup';
             document.getElementById('start-quiz-btn').innerHTML = `<i class="fa-solid fa-robot"></i> Generate Quiz`;
-            setQuizConfigInputs(true); // Enable inputs
+            setQuizConfigInputs(true);
             document.getElementById('name').value = localStorage.getItem('quizUserName') || '';
-            document.getElementById('topic').value = ''; // Clear topic field
+            document.getElementById('topic').value = ''; 
             showPage('setup');
         }
 
@@ -555,7 +586,7 @@
             document.getElementById('setup-title').textContent = `Challenge from ${sharedQuizData.name}`;
             document.getElementById('quiz-config-inputs').style.display = 'none';
             document.getElementById('start-quiz-btn').innerHTML = `<i class="fa-solid fa-play"></i> Start Challenge`;
-            setQuizConfigInputs(false); // Disable inputs to fix submission bug
+            setQuizConfigInputs(false); 
             document.getElementById('name').value = localStorage.getItem('quizUserName') || '';
             showPage('setup');
         }
@@ -577,12 +608,13 @@
             try {
                 const splashTl = gsap.timeline({
                     onComplete: () => {
+                        document.getElementById('splash-screen').style.display = 'none';
                         initThree();
                         if (window.location.hash.startsWith('#quiz-share-')) {
                             try {
                                 const encodedData = window.location.hash.substring(12);
                                 sharedQuizData = JSON.parse(atob(encodedData));
-                                window.location.hash = ''; // Clear hash
+                                window.location.hash = ''; 
                                 prepareForChallengeQuiz();
                             } catch (e) {
                                 console.error('Failed to decode shared quiz:', e);
@@ -596,7 +628,7 @@
                 splashTl
                     .to("#splash-icon", { duration: 1, autoAlpha: 1, scale: 1, ease: 'back.out(1.7)' })
                     .to("#splash-title", { duration: 0.8, autoAlpha: 1, scale: 1, ease: 'back.out(1.7)' }, "-=0.7")
-                    .to("#splash-screen", { duration: 0.8, autoAlpha: 0, delay: 1, onComplete: () => { document.getElementById('splash-screen').style.display = 'none'; } });
+                    .to("#splash-screen", { duration: 0.8, autoAlpha: 0, delay: 0.5 });
             } catch(e) { console.error("Initialization failed:", e); document.body.innerHTML = '<h1>A critical error occurred. Please refresh the page.</h1>'; } 
         });
     </script>
