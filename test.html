@@ -343,24 +343,54 @@
             const viewBtn = e.target.closest('.btn-view');
             const favBtn = e.target.closest('.btn-favorite');
             const shareBtn = e.target.closest('.btn-share');
+
             if (viewBtn) {
                 const quizData = getHistory().find(q => q.id === Number(viewBtn.dataset.id));
                 if (quizData) { renderResults(quizData); showPage('results'); }
             }
             if (favBtn) { toggleFavorite(Number(favBtn.dataset.id)); }
+            
+            // =======================================================================
+            // ///  NEW: Link Shortener Integration ///
+            // =======================================================================
             if (shareBtn) {
                 const quizData = getHistory().find(q => q.id === Number(shareBtn.dataset.id));
-                if (quizData) {
+                if (!quizData) return;
+
+                const shareButtonIcon = shareBtn.querySelector('i');
+                shareButtonIcon.className = 'fa-solid fa-spinner fa-spin'; // Show loader
+
+                try {
+                    // 1. Create the long URL with the data
                     const encodedData = btoa(JSON.stringify(quizData));
-                    const shareUrl = `${window.location.origin}${window.location.pathname}#quiz-share-${encodedData}`;
-                    const sharePayload = { title: 'Sintha Quiz Challenge', text: `I scored ${quizData.score}/${quizData.numQuestions} on a quiz about ${quizData.topic}! Can you beat my score?`, url: shareUrl };
-                    if (navigator.share) {
-                        try { await navigator.share(sharePayload); } 
-                        catch (err) { console.error('Share failed:', err); showSnackbar("Could not share quiz."); }
-                    } else {
-                        navigator.clipboard.writeText(shareUrl);
-                        showSnackbar("Challenge link copied to clipboard!");
+                    const longUrl = `${window.location.origin}${window.location.pathname}#quiz-share-${encodedData}`;
+
+                    // 2. Call the TinyURL API to shorten it
+                    const apiUrl = `https://tinyurl.com/api-create.php?url=${encodeURIComponent(longUrl)}`;
+                    const response = await fetch(apiUrl);
+                    if (!response.ok) {
+                        throw new Error('API response was not ok.');
                     }
+                    const shortUrl = await response.text();
+
+                    // 3. Use the new short URL for sharing
+                    const sharePayload = {
+                        title: 'Sintha Quiz Challenge',
+                        text: `I scored ${quizData.score}/${quizData.numQuestions} on a quiz about ${quizData.topic}! Can you beat my score?`,
+                        url: shortUrl // Use the short URL here
+                    };
+
+                    if (navigator.share) {
+                        await navigator.share(sharePayload);
+                    } else {
+                        navigator.clipboard.writeText(shortUrl);
+                        showSnackbar("Short challenge link copied to clipboard!");
+                    }
+                } catch (err) {
+                    console.error('Error creating short link:', err);
+                    showSnackbar("Could not create short link. Please try again.");
+                } finally {
+                    shareButtonIcon.className = 'fa-solid fa-share-nodes'; // Reset icon
                 }
             }
         }
